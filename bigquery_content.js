@@ -29,9 +29,10 @@ function createButton() {
 
         chrome.runtime.sendMessage({
             type: "checkGitHubLogin"
-        }, function(loggedIn) {
-            if (loggedIn) {
+        }, function(info) {
+            if (info.loggedIn) {
                 saveToGitHubOptions.show();
+                $("#github-repo", saveToGitHubOptions).val(info.defaultRepo);
             } else {
                 $(".error", loginToGitHubOptions).html("");
                 loginToGitHubOptions.show();
@@ -53,17 +54,8 @@ function createButton() {
               'height: 454px">' +
             '<article class="wizard-step">' +
               'In order to save to GitHub, please authenticate with your ' +
-              'username and password and choose a repository to save to.' +
+              'GitHub account.' +
               '<div class="error" style="color: red"></div>' +
-              '<table><tbody>' +
-                '<tr><th>Username</th><td><input id="github-username" ' +
-                  'type="text" class="jfk-textinput"></td></tr>' +
-                '<tr><th>Password</th><td><input id="github-password" ' +
-                  'type="password" class="jfk-textinput"></td></tr>' +
-                '<tr><th>Repository</th><td><input id="github-repo" ' +
-                  'type="text" class="jfk-textinput" ' +
-                  'placeholder="owner/repo"></td></tr>' +
-              '</tbody></table>' +
             '</article>' +
           '</div>' +
           '<div style="position: absolute; right: 42px; bottom: 30px; ' +
@@ -82,23 +74,9 @@ function createButton() {
         loginToGitHubOptions.hide();
     });
     $(".wizard-submit-button", loginToGitHubOptions).click(function() {
-        var username = $("#github-username").val();
-        var password = $("#github-password").val();
-        var repo = $("#github-repo").val();
-
-        if (username !== "" && password !== "" && repo !== "" &&
-            repo.split("/").length === 2) {
-
-            $(".wizard-submit-button", loginToGitHubOptions).addClass(
-                "jfk-button-disabled");
-
-            chrome.runtime.sendMessage({
-                type: "loginToGitHub",
-                username: username,
-                password: password,
-                repo: repo
-            });
-        }
+        chrome.runtime.sendMessage({
+            type: "loginToGitHub"
+        });
     });
     $("body").append(loginToGitHubOptions);
 
@@ -115,10 +93,15 @@ function createButton() {
               'height: 454px">' +
             '<article class="wizard-step">' +
               '<table><tbody>' +
-                '<tr><th>Directory</th><td><input id="github-dir" ' +
-                  'type="text" class="jfk-textinput"></td></tr>' +
+                '<tr><th>Repository</th><td><input id="github-repo" ' +
+                  'type="text" class="jfk-textinput"' +
+                  'placeholder="owner/repo"></td></tr>' +
+                '<tr><th>Path</th><td><input id="github-path" ' +
+                  'type="text" class="jfk-textinput"' +
+                  'placeholder="path/to/file"></td></tr>' +
                 '<tr><th>Filename</th><td><input id="github-name" ' +
-                  'type="text" class="jfk-textinput"></td></tr>' +
+                  'type="text" class="jfk-textinput"' +
+                  'placeholder="filename (w/o extension)"></td></tr>' +
                 '<tr><th>Title</th><td><input id="github-title" ' +
                   'type="text" class="jfk-textinput"></td></tr>' +
                 '<tr><th>Description</th><td><input id="github-description" ' +
@@ -142,28 +125,30 @@ function createButton() {
         saveToGitHubOptions.hide();
     });
     $(".wizard-submit-button", saveToGitHubOptions).click(function() {
-        var dir = $("#github-dir").val();
+        var repo = $("#github-repo").val();
+        var path = $("#github-path").val();
         var name = $("#github-name").val();
         var title = $("#github-title").val();
         var description = $("#github-description").val();
 
-        if (dir !== "" && name !== "" && title !== "" && description !== "") {
+        if (repo !== "" && repo.split("/").length === 2 &&
+            path !== "" && name !== "" && title !== "" && description !== "") {
 
             $(".wizard-submit-button", saveToGitHubOptions).addClass(
                 "jfk-button-disabled");
 
-            saveToGitHub(dir, name, title, description);
+            saveToGitHub(repo, path, name, title, description);
         }
     });
     $("body").append(saveToGitHubOptions);
 }
 
-function saveToGitHub(dir, name, title, description) {
+function saveToGitHub(repo, path, name, title, description) {
     // TODO(tom): Clear old title & description if they exist?
-    // TODO(tom): Linting of dir & name
+    // TODO(tom): Linting of path & name
     var text = [
         '// Title: ', title, "\n",
-        '// Description: ', description, "\n"
+        '// Description: ', description, "\n\n"
     ];
 
     // Extract the actual query out of the annoying CodeMirror markup
@@ -187,7 +172,8 @@ function saveToGitHub(dir, name, title, description) {
     chrome.runtime.sendMessage({
         type: "saveToGitHub",
         content: finalText,
-        dir: dir,
+        repo: repo,
+        path: path,
         name: name + '.sql',
         title: title,
         description: description
@@ -204,8 +190,6 @@ chrome.runtime.onMessage.addListener(
         if (request.type && request.type === "loginToGitHubError") {
             $(".error", loginToGitHubOptions).html(
                 "Error logging in: " + request.message);
-            $(".wizard-submit-button", loginToGitHubOptions).removeClass(
-                "jfk-button-disabled");
         }
 
         if (request.type && request.type === "savedToGitHub") {

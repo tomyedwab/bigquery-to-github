@@ -11,50 +11,84 @@ chrome.storage.sync.get(["gitHubToken", "gitHubRepo"], function(data) {
     }
 });
 
-function login(username, password, repo) {
-    return $.ajax({
-        url: "https://api.github.com/authorizations/clients/" + gitHubClientId,
-        headers: {"Authorization": "Basic " + btoa(username + ":" + password)},
-        method: "PUT",
-        data: "{\"scopes\": [\"repo\", \"user\"], \"note\": \"bigquery-to-github\", \"client_secret\": \"" + gitHubClientSecret + "\"}"
-    }).then(function(resp) {
-        gitHubToken = resp.token;
-        gitHubRepo = repo;
+var gitHubLoginState = null;
+var gitHubLoginDeferred = null;
 
-        // Try loading the HEAD commit to validate the repository
-        return getRootCommitAndTree();
+var gitHubRedirectUri = "chrome-extension://" +
+    chrome.i18n.getMessage("@@extension_id") +
+    "/auth.html";
+
+function login() {
+    gitHubLoginDeferred = $.Deferred();
+
+    // Create a random string to protect against XSS
+    gitHubLoginState = (""+Math.random()).substring(2);
+
+    chrome.tabs.create({
+        url: "https://github.com/login/oauth/authorize" +
+            "?client_id=" +
+            gitHubClientId +
+            "&redirect_uri=" +
+            gitHubRedirectUri +
+            "&scope=repo&state=" +
+            gitHubLoginState
+    });
+
+    return gitHubLoginDeferred;
+};
+
+function completeLogin(code, state) {
+    if (gitHubLoginDeferred === null ||
+        state !== gitHubLoginState) {
+        return;
+    }
+
+    // Exchange the code for an auth token
+    $.ajax({
+        url: "https://github.com/login/oauth/access_token" +
+            "?client_id=" +
+            gitHubClientId +
+            "&client_secret=" +
+            gitHubClientSecret +
+            "&code=" +
+            code +
+            "&redirect_uri=" +
+            gitHubRedirectUri,
+        method: "POST",
+        headers: {
+            Accept: "application/json"
+        }
     }).then(function(resp) {
-        // Store credentials so we don't have to log in again
+        gitHubToken = resp.access_token;
+
         chrome.storage.sync.set({
-            gitHubToken: gitHubToken,
-            gitHubRepo: gitHubRepo
+            gitHubToken: gitHubToken
         });
-        return true;
+
+        gitHubLoginDeferred.resolve();
+        gitHubLoginDeferred = null;
     }, function(xhr) {
-        // Invalid respository! We're still not logged in correctly.
-        return xhr;
+        gitHubLoginDeferred.reject(xhr);
+        gitHubLoginDeferred = null;
     });
 };
 
 function logout() {
     // Some error happened; reset login information
     gitHubToken = null;
-    gitHubRepo = null;
-
     chrome.storage.sync.set({
-        gitHubToken: gitHubToken,
-        gitHubRepo: gitHubRepo
+        gitHubToken: null
     });
 };
 
-function getRootCommitAndTree() {
+function getRootCommitAndTree(repo) {
     return $.ajax({
-        url: "https://api.github.com/repos/" + gitHubRepo +
+        url: "https://api.github.com/repos/" + repo +
             "/git/refs/heads/master",
         headers: {"Authorization": "Token " + gitHubToken}
     }).then(function(resp) {
         return $.ajax({
-            url: "https://api.github.com/repos/" + gitHubRepo +
+            url: "https://api.github.com/repos/" + repo +
                 "/git/commits/" + resp.object.sha,
             headers: {"Authorization": "Token " + gitHubToken}
         });
@@ -66,18 +100,17 @@ function getRootCommitAndTree() {
     });
 };
 
-
-function createFile(path, name, content) {
+function createFile(repo, path, name, content) {
     
     var newBlobSha = null;
     var parentCommit = null;
 
     // Create the blob
-    return getRootCommitAndTree().then(function(commitAndTree) {
+    return getRootCommitAndTree(repo).then(function(commitAndTree) {
         parentCommit = commitAndTree.commitSha;
 
         return $.ajax({
-            url: "https://api.github.com/repos/" + gitHubRepo + "/git/trees",
+            url: "https://api.github.com/repos/" + repo + "/git/trees",
             headers: {"Authorization": "Token " + gitHubToken},
             method: "POST",
             data: JSON.stringify({
@@ -95,7 +128,7 @@ function createFile(path, name, content) {
         var newTreeSha = resp.sha;
 
         return $.ajax({
-            url: "https://api.github.com/repos/" + gitHubRepo + "/git/commits",
+            url: "https://api.github.com/repos/" + repo + "/git/commits",
             headers: {"Authorization": "Token " + gitHubToken},
             method: "POST",
             data: JSON.stringify({
@@ -108,7 +141,7 @@ function createFile(path, name, content) {
         var newCommitSha = resp.sha;
 
         return $.ajax({
-            url: "https://api.github.com/repos/" + gitHubRepo + "/git/refs/" +
+            url: "https://api.github.com/repos/" + repo + "/git/refs/" +
                 "heads/master",
             headers: {"Authorization": "Token " + gitHubToken},
             method: "POST",
@@ -122,11 +155,14 @@ function createFile(path, name, content) {
 chrome.runtime.onMessage.addListener(
     function(request, sender, sendResponse) {
         if (request.type && request.type === "checkGitHubLogin") {
-            sendResponse(gitHubToken !== null && gitHubRepo !== null);
+            sendResponse({
+                loggedIn: gitHubToken !== null,
+                defaultRepo: gitHubRepo
+            });
         }
 
         if (request.type && request.type === "loginToGitHub") {
-            login(request.username, request.password, request.repo).then(
+            login().then(
                 function() {
                     chrome.tabs.sendMessage(
                         sender.tab.id, {type: "loggedInToGitHub"});
@@ -142,9 +178,13 @@ chrome.runtime.onMessage.addListener(
         }
 
         if (request.type && request.type === "saveToGitHub" &&
-                gitHubToken !== null && gitHubRepo !== null) {
-            createFile(request.dir, request.name, request.content).then(
+                gitHubToken !== null) {
+            createFile(request.repo, request.path, request.name,
+                    request.content).then(
                 function() {
+                    // Update default repo on success
+                    gitHubRepo = request.repo;
+
                     chrome.tabs.sendMessage(
                         sender.tab.id, {type: "savedToGitHub"});
                 }, function(xhr) {
@@ -156,6 +196,11 @@ chrome.runtime.onMessage.addListener(
                         });
                 });
 
+            sendResponse();
+        }
+
+        if (request.type && request.type === "completeLoginToGitHub") {
+            completeLogin(request.code, request.state);
             sendResponse();
         }
     });

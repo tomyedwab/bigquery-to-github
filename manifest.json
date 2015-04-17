@@ -18,6 +18,8 @@
     "persistent": false
   },
   "permissions": [
-    "storage"
+    "storage",
+    "tabs",
+    "https://*.github.com/*"
   ]
 }
