@@ -1,6 +1,15 @@
-// TODO(tom) Persist these
 var gitHubToken = null;
 var gitHubRepo = null;
+
+// Load token & repo from synced storage on startup
+chrome.storage.sync.get(["gitHubToken", "gitHubRepo"], function(data) {
+    if (data && data.gitHubToken) {
+        gitHubToken = data.gitHubToken;
+    }
+    if (data && data.gitHubRepo) {
+        gitHubRepo = data.gitHubRepo;
+    }
+});
 
 function login(username, password, repo) {
     return $.ajax({
@@ -11,7 +20,30 @@ function login(username, password, repo) {
     }).then(function(resp) {
         gitHubToken = resp.token;
         gitHubRepo = repo;
+
+        // Try loading the HEAD commit to validate the repository
+        return getRootCommitAndTree();
+    }).then(function(resp) {
+        // Store credentials so we don't have to log in again
+        chrome.storage.sync.set({
+            gitHubToken: gitHubToken,
+            gitHubRepo: gitHubRepo
+        });
         return true;
+    }, function(xhr) {
+        // Invalid respository! We're still not logged in correctly.
+        return xhr;
+    });
+};
+
+function logout() {
+    // Some error happened; reset login information
+    gitHubToken = null;
+    gitHubRepo = null;
+
+    chrome.storage.sync.set({
+        gitHubToken: gitHubToken,
+        gitHubRepo: gitHubRepo
     });
 };
 
@@ -99,7 +131,12 @@ chrome.runtime.onMessage.addListener(
                     chrome.tabs.sendMessage(
                         sender.tab.id, {type: "loggedInToGitHub"});
                 }, function(xhr) {
-                    // TODO(tom) report error
+                    logout();
+                    chrome.tabs.sendMessage(
+                        sender.tab.id, {
+                            type: "loginToGitHubError",
+                            message: xhr.responseText
+                        });
                 });
             sendResponse();
         }
@@ -111,7 +148,12 @@ chrome.runtime.onMessage.addListener(
                     chrome.tabs.sendMessage(
                         sender.tab.id, {type: "savedToGitHub"});
                 }, function(xhr) {
-                    // TODO(tom): Report error
+                    logout();
+                    chrome.tabs.sendMessage(
+                        sender.tab.id, {
+                            type: "saveToGitHubError",
+                            message: xhr.responseText
+                        });
                 });
 
             sendResponse();

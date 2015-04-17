@@ -33,6 +33,7 @@ function createButton() {
             if (loggedIn) {
                 saveToGitHubOptions.show();
             } else {
+                $(".error", loginToGitHubOptions).html("");
                 loginToGitHubOptions.show();
             }
         });
@@ -53,6 +54,7 @@ function createButton() {
             '<article class="wizard-step">' +
               'In order to save to GitHub, please authenticate with your ' +
               'username and password and choose a repository to save to.' +
+              '<div class="error" style="color: red"></div>' +
               '<table><tbody>' +
                 '<tr><th>Username</th><td><input id="github-username" ' +
                   'type="text" class="jfk-textinput"></td></tr>' +
@@ -199,9 +201,23 @@ chrome.runtime.onMessage.addListener(
             saveToGitHubOptions.show();
         }
 
+        if (request.type && request.type === "loginToGitHubError") {
+            $(".error", loginToGitHubOptions).html(
+                "Error logging in: " + request.message);
+            $(".wizard-submit-button", loginToGitHubOptions).removeClass(
+                "jfk-button-disabled");
+        }
+
         if (request.type && request.type === "savedToGitHub") {
             saveToGitHubButton.removeClass("jfk-button-disabled");
             saveToGitHubOptions.hide();
             sendState = null;
+        }
+
+        if (request.type && request.type === "saveToGitHubError") {
+            $(".error", loginToGitHubOptions).html(
+                "Error saving query: " + request.message);
+            saveToGitHubOptions.hide();
+            loginToGitHubOptions.show();
         }
     });
