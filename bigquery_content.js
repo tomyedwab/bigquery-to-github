@@ -33,6 +33,10 @@ function createButton() {
             if (info.loggedIn) {
                 saveToGitHubOptions.show();
                 $("#github-repo", saveToGitHubOptions).val(info.defaultRepo);
+                $("#github-path", saveToGitHubOptions).val(info.defaultDir);
+                $("#github-name", saveToGitHubOptions).val("");
+                $("#github-title", saveToGitHubOptions).val("");
+                $("#github-description", saveToGitHubOptions).val("");
             } else {
                 $(".error", loginToGitHubOptions).html("");
                 loginToGitHubOptions.show();

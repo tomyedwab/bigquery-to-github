@@ -1,15 +1,17 @@
 var gitHubToken = null;
 var gitHubRepo = null;
+var gitHubDir = null;
 
 // Load token & repo from synced storage on startup
-chrome.storage.sync.get(["gitHubToken", "gitHubRepo"], function(data) {
-    if (data && data.gitHubToken) {
-        gitHubToken = data.gitHubToken;
-    }
-    if (data && data.gitHubRepo) {
-        gitHubRepo = data.gitHubRepo;
-    }
-});
+chrome.storage.sync.get(["gitHubToken", "gitHubRepo", "gitHubDir"],
+    function(data) {
+        if (!data) {
+            return;
+        }
+        gitHubToken = gitHubToken || data.gitHubToken || null;
+        gitHubRepo = gitHubRepo || data.gitHubRepo || null;
+        gitHubDir = gitHubDir || data.gitHubDir || null;
+    });
 
 var gitHubLoginState = null;
 var gitHubLoginDeferred = null;
@@ -157,7 +159,8 @@ chrome.runtime.onMessage.addListener(
         if (request.type && request.type === "checkGitHubLogin") {
             sendResponse({
                 loggedIn: gitHubToken !== null,
-                defaultRepo: gitHubRepo
+                defaultRepo: gitHubRepo,
+                defaultDir: gitHubDir
             });
         }
 
@@ -184,6 +187,11 @@ chrome.runtime.onMessage.addListener(
                 function() {
                     // Update default repo on success
                     gitHubRepo = request.repo;
+                    gitHubDir = request.path;
+                    chrome.storage.sync.set({
+                        gitHubRepo: gitHubRepo,
+                        gitHubDir: gitHubDir
+                    });
 
                     chrome.tabs.sendMessage(
                         sender.tab.id, {type: "savedToGitHub"});
