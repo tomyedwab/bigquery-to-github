@@ -3,7 +3,7 @@
 
   "name": "Save BigQuery to GitHub",
   "description": "Adds a button to the BigQuery UI to save a query directly to a GitHub repository",
-  "version": "0.1",
+  "version": "0.2",
 
   "icons": { "48": "exticon.png" },
 
