@@ -5,8 +5,33 @@ var saveToGitHubOptions = null;
 
 var sendState = null;
 
+// Injected code for the source page to watch for changes to the CodeMirror
+// doc and respond to requests for scraping from this script.
+var injectedCode = (
+    "(function() {" +
+    "  var doc = null;" + 
+    "  window.CodeMirror.defineInitHook(function(cm) {" +
+    "    doc = cm.doc;" +
+    "  });" +
+    "  window.addEventListener('message', function(event) {" +
+    "    if (event.data === 'bigquery-to-github:scrape!') {" +
+    "      window.postMessage({" +
+    "        type: 'bigquery-to-github:content'," +
+    "        text: doc.getValue()" +
+    "      }, '*');" +
+    "    }" +
+    "  });" +
+    "})();"
+);
+
 $(document).ready(function() {
     createButton();
+
+    // Inject the script above into the source page
+    var s = document.createElement('script');
+    s.type = 'text/javascript';
+    s.appendChild(document.createTextNode(injectedCode));
+    document.body.appendChild(s);
 
     // Poll twice a second for whether the query view is visible
     setInterval(function() {
@@ -147,41 +172,47 @@ function createButton() {
     $("body").append(saveToGitHubOptions);
 }
 
+var _scrapeResultsHandler = null;
+
+window.addEventListener('message', function(event) {
+    if (event.data.type && event.data.type === "bigquery-to-github:content" &&
+        _scrapeResultsHandler) {
+        _scrapeResultsHandler(event.data.text);
+    }
+});
+
 function saveToGitHub(repo, path, name, title, description) {
-    // TODO(tom): Clear old title & description if they exist?
     // TODO(tom): Linting of path & name
-    var text = [
-        '// Title: ', title, "\n",
-        '// Description: ', description, "\n\n"
-    ];
+    
+    // Set a handler that the injected JS on the page will talk to via the
+    // message handler above
+    _scrapeResultsHandler = function(queryText) {
+        var text = [
+            '// Title: ', title, "\n",
+            '// Description: ', description, "\n\n",
+            queryText
+        ];
+        var finalText = text.join("");
 
-    // Extract the actual query out of the annoying CodeMirror markup
-    var nodes = $(".CodeMirror-code pre");
-    $.each(nodes, function(idx, el) {
-        $.each($(el).contents(), function(idx2, child) {
-            if (child.nodeType === 1) {
-                text.push(child.innerText);
-            } else if (child.nodeType === 3) {
-                text.push(child.textContent);
-            }
+        saveToGitHubButton.addClass("jfk-button-disabled");
+        sendState = "sending";
+
+        chrome.runtime.sendMessage({
+            type: "saveToGitHub",
+            content: finalText,
+            repo: repo,
+            path: path,
+            name: name + '.sql',
+            title: title,
+            description: description
         });
-        text.push("\n");
-    });
 
-    var finalText = text.join("");
+        _scrapeResultsHandler = null;
+    }
 
-    saveToGitHubButton.addClass("jfk-button-disabled");
-    sendState = "sending";
-
-    chrome.runtime.sendMessage({
-        type: "saveToGitHub",
-        content: finalText,
-        repo: repo,
-        path: path,
-        name: name + '.sql',
-        title: title,
-        description: description
-    });
+    // Post the message to the source page asking for a scrape of the currently
+    // open document
+    window.postMessage("bigquery-to-github:scrape!", "*");
 }
 
 chrome.runtime.onMessage.addListener(
