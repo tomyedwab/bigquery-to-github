@@ -180,6 +180,28 @@ chrome.runtime.onMessage.addListener(
             sendResponse();
         }
 
+        if (request.type && request.type === "checkGitHubRepo" &&
+                gitHubToken !== null) {
+            getRootCommitAndTree(request.repo).then(
+                function() {
+                    chrome.tabs.sendMessage(
+                        sender.tab.id, {
+                            type: "gitHubRepoValid",
+                            repo: request.repo,
+                            valid: true
+                        });
+                }, function(xhr) {
+                    chrome.tabs.sendMessage(
+                        sender.tab.id, {
+                            type: "gitHubRepoValid",
+                            repo: request.repo,
+                            valid: false
+                        });
+                });
+
+            sendResponse();
+        }
+
         if (request.type && request.type === "saveToGitHub" &&
                 gitHubToken !== null) {
             createFile(request.repo, request.path, request.name,

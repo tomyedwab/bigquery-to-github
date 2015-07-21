@@ -5,6 +5,9 @@ var saveToGitHubOptions = null;
 
 var sendState = null;
 
+var validRepos = [];
+var invalidRepos = [];
+
 // Injected code for the source page to watch for changes to the CodeMirror
 // doc and respond to requests for scraping from this script.
 var injectedCode = (
@@ -44,6 +47,62 @@ $(document).ready(function() {
     }, 500);
 });
 
+function validate() {
+    var repo = $("#github-repo").val();
+    var path = $("#github-path").val();
+    var name = $("#github-name").val();
+    var title = $("#github-title").val();
+    var description = $("#github-description").val();
+
+    var repoIsValid = false;
+    var fileIsValid = false;
+
+    if (repo !== "" && repo.split("/").length === 2) {
+        if (validRepos.indexOf(repo) !== -1) {
+            repoIsValid = true;
+            // Show a green check mark
+            $(".validator-valid", saveToGitHubOptions).css({display:"inline-block"});
+            $(".validator-invalid", saveToGitHubOptions).css({display:"none"});
+
+        } else if (invalidRepos.indexOf(repo) !== -1) {
+            // Show a red exclamation mark
+            $(".validator-valid", saveToGitHubOptions).css({display:"none"});
+            $(".validator-invalid", saveToGitHubOptions).css({display:"inline-block"});
+
+        } else {
+            $(".validator-valid", saveToGitHubOptions).css({display:"none"});
+            $(".validator-invalid", saveToGitHubOptions).css({display:"none"});
+
+            chrome.runtime.sendMessage({
+                type: "checkGitHubRepo",
+                repo: repo
+            });
+        }
+    }
+
+    if (path !== "" && name !== "" && title !== "" && description !== "") {
+        fileIsValid = true;
+    }
+
+    if (repoIsValid && fileIsValid && sendState === null) {
+        // Can save
+        $(".wizard-submit-button", saveToGitHubOptions).removeClass(
+            "jfk-button-disabled");
+        return {
+            repo: repo,
+            path: path,
+            name: name,
+            title: title,
+            description: description
+        };
+    } else {
+        // Cannot save
+        $(".wizard-submit-button", saveToGitHubOptions).addClass(
+            "jfk-button-disabled");
+        return null;
+    }
+}
+
 function createButton() {
     saveToGitHubButton = $('<div id="saveToGitHubButton" class="goog-inline-block jfk-button jfk-button-standard" role="button" style="-webkit-user-select: none;" tabindex="0">Save Query to GitHub</div>');
     saveToGitHubButton.click(function() {
@@ -62,6 +121,7 @@ function createButton() {
                 $("#github-name", saveToGitHubOptions).val("");
                 $("#github-title", saveToGitHubOptions).val("");
                 $("#github-description", saveToGitHubOptions).val("");
+                validate();
             } else {
                 $(".error", loginToGitHubOptions).html("");
                 loginToGitHubOptions.show();
@@ -124,7 +184,10 @@ function createButton() {
               '<table><tbody>' +
                 '<tr><th>Repository</th><td><input id="github-repo" ' +
                   'type="text" class="jfk-textinput"' +
-                  'placeholder="owner/repo"></td></tr>' +
+                  'placeholder="owner/repo">' +
+                  '<div id="validator-indicator" class="validator-bubble validator-invalid" style="display:none"><div class="validator-symbol goog-inline-block">!</div></div>' +
+                  '<div id="validator-indicator" class="validator-bubble validator-valid" style="display:none"><div class="validator-symbol goog-inline-block">&#x2713;</div></div>' +
+                  '</td></tr>' +
                 '<tr><th>Path</th><td><input id="github-path" ' +
                   'type="text" class="jfk-textinput"' +
                   'placeholder="path/to/file"></td></tr>' +
@@ -147,6 +210,9 @@ function createButton() {
               'style="float: right; margin-right: 0px">Cancel</div>' +
           '</div>' +
         '</div>');
+    saveToGitHubOptions.delegate("input", "keyup", function() {
+        validate();
+    });
     $(".modal-dialog-title-close", saveToGitHubOptions).click(function() {
         saveToGitHubOptions.hide();
     });
@@ -154,19 +220,10 @@ function createButton() {
         saveToGitHubOptions.hide();
     });
     $(".wizard-submit-button", saveToGitHubOptions).click(function() {
-        var repo = $("#github-repo").val();
-        var path = $("#github-path").val();
-        var name = $("#github-name").val();
-        var title = $("#github-title").val();
-        var description = $("#github-description").val();
-
-        if (repo !== "" && repo.split("/").length === 2 &&
-            path !== "" && name !== "" && title !== "" && description !== "") {
-
-            $(".wizard-submit-button", saveToGitHubOptions).addClass(
-                "jfk-button-disabled");
-
-            saveToGitHub(repo, path, name, title, description);
+        var params = validate();
+        if (params) {
+            saveToGitHub(params.repo, params.path, params.name, params.title,
+                params.description);
         }
     });
     $("body").append(saveToGitHubOptions);
@@ -238,5 +295,14 @@ chrome.runtime.onMessage.addListener(
                 "Error saving query: " + request.message);
             saveToGitHubOptions.hide();
             loginToGitHubOptions.show();
+        }
+
+        if (request.type && request.type === "gitHubRepoValid") {
+            if (request.valid) {
+                validRepos.push(request.repo);
+            } else {
+                invalidRepos.push(request.repo);
+            }
+            validate();
         }
     });
