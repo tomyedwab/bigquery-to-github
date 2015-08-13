@@ -41,7 +41,9 @@ $(document).ready(function() {
         var buttonBar = $("#query-button-bar");
         if (buttonBar.size() > 0) {
             if (buttonBar.find("#saveToGitHubButton").size() === 0) {
-                saveToGitHubButton.insertAfter(buttonBar.find("#view-save"));
+                // The "Save Query" button is the third button in the bar;
+                // insert ours after that one
+                saveToGitHubButton.insertAfter(buttonBar.find(".jfk-button")[2]);
             }
         }
     }, 500);
