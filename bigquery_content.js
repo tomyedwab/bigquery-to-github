@@ -12,15 +12,18 @@ var invalidRepos = [];
 // doc and respond to requests for scraping from this script.
 var injectedCode = (
     "(function() {" +
-    "  var doc = null;" + 
+    "  var bqdoc = null;" + 
+    "  var jsdoc = null;" + 
     "  window.CodeMirror.defineInitHook(function(cm) {" +
-    "    doc = cm.doc;" +
+    "    if (cm.options.mode === 'bqsql') { bqdoc = cm.doc; }" +
+    "    if (cm.options.mode === 'javascript') { jsdoc = cm.doc; }" +
     "  });" +
     "  window.addEventListener('message', function(event) {" +
     "    if (event.data === 'bigquery-to-github:scrape!') {" +
     "      window.postMessage({" +
     "        type: 'bigquery-to-github:content'," +
-    "        text: doc.getValue()" +
+    "        bq: bqdoc.getValue()," +
+    "        js: jsdoc.getValue()" +
     "      }, '*');" +
     "    }" +
     "  });" +
@@ -236,7 +239,7 @@ var _scrapeResultsHandler = null;
 window.addEventListener('message', function(event) {
     if (event.data.type && event.data.type === "bigquery-to-github:content" &&
         _scrapeResultsHandler) {
-        _scrapeResultsHandler(event.data.text);
+        _scrapeResultsHandler(event.data.bq, event.data.js);
     }
 });
 
@@ -245,11 +248,14 @@ function saveToGitHub(repo, path, name, title, description) {
     
     // Set a handler that the injected JS on the page will talk to via the
     // message handler above
-    _scrapeResultsHandler = function(queryText) {
+    _scrapeResultsHandler = function(bqText, jsText) {
         var text = [
-            '// Title: ', title, "\n",
-            '// Description: ', description, "\n\n",
-            queryText
+            '// Title: ', title, '\n',
+            '// Description: ', description, '\n\n',
+            '// ==== BigQuery ====\n\n',
+            bqText,
+            '\n\n// ==== JavaScript UDF ====\n\n',
+            jsText,
         ];
         var finalText = text.join("");
 

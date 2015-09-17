@@ -3,7 +3,7 @@
 
   "name": "Save BigQuery to GitHub",
   "description": "Adds a button to the BigQuery UI to save a query directly to a GitHub repository",
-  "version": "0.5",
+  "version": "0.6",
 
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlhAajIPAKV4kMNM5I//fB2mgaupdDRHGY46pB6LQQH7Nu5J5zmS7bjwUkpdo4gucEOtOqrW6vw2PUhSCxOrp+DU015F2sab9ZD+54cMbFLHf9R4Y8j9Xf1Ko1zxojSeevr/v1OZwJUix7IEh7gIzyNuftt4Z1vpQGC+GFwZ17DsaQxvbUuK07grUMT571R0FaigOVoOXRVxI8bp8/EuzEBqeMONlx03dYNK0CDTLLOLOdkqFqjez72Ezb14V95Y/NjRFddMMlYrpJbMDcyKNMJZKHWBPy634G+lEc9VK9hNaD7b3u9uG5QBjcfsIA8c80RcuzAuREGUuh0bjwkXulwIDAQAB",
   "icons": { "48": "exticon.png", "96": "exticon96.png" },
