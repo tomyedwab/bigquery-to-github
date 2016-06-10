@@ -1,7 +1,9 @@
 // TODO(tom) "Log out" button?
 
 var saveToGitHubButton = null;
+var loginToGitHubOptions = null;
 var saveToGitHubOptions = null;
+var dialogBg = null;
 
 var sendState = null;
 
@@ -12,8 +14,8 @@ var invalidRepos = [];
 // doc and respond to requests for scraping from this script.
 var injectedCode = (
     "(function() {" +
-    "  var bqdoc = null;" + 
-    "  var jsdoc = null;" + 
+    "  var bqdoc = null;" +
+    "  var jsdoc = null;" +
     "  window.CodeMirror.defineInitHook(function(cm) {" +
     "    if (cm.options.mode === 'bqsql') { bqdoc = cm.doc; }" +
     "    if (cm.options.mode === 'javascript') { jsdoc = cm.doc; }" +
@@ -120,6 +122,7 @@ function createButton() {
             type: "checkGitHubLogin"
         }, function(info) {
             if (info.loggedIn) {
+                dialogBg.show();
                 saveToGitHubOptions.show();
                 $("#github-repo", saveToGitHubOptions).val(info.defaultRepo);
                 $("#github-path", saveToGitHubOptions).val(info.defaultDir);
@@ -129,19 +132,25 @@ function createButton() {
                 validate();
             } else {
                 $(".error", loginToGitHubOptions).html("");
+                dialogBg.show();
                 loginToGitHubOptions.show();
             }
         });
 
     });
 
+    dialogBg = $(
+        '<div class="modal-dialog-bg" style="opacity: 0.75; width: 100%; height: 100%; display: none" />'
+    );
+    $("body").append(dialogBg);
+
     loginToGitHubOptions = $(
-        '<div class="goog-modalpopup modal-dialog wizard-dialog" ' +
+        '<div class="modal-dialog bigquery-dialog wizard-dialog" ' +
             'tabindex="0" style="width:670px; height: 260px; left: 50%; ' +
             'margin-left: -335px; display: none">' +
-          '<div class="modal-dialog-title">' + 
+          '<div class="modal-dialog-title">' +
             '<span id="wizard-title" class="modal-dialog-title-text">' +
-              'Log in to GitHub</span>' + 
+              'Log in to GitHub</span>' +
             '<span class="modal-dialog-title-close"></span>' +
           '</div>' +
           '<div style="position: absolute; right: 42px; left: 42px; ' +
@@ -163,9 +172,11 @@ function createButton() {
         '</div>');
     $(".modal-dialog-title-close", loginToGitHubOptions).click(function() {
         loginToGitHubOptions.hide();
+        dialogBg.hide();
     });
     $(".wizard-cancel-button", loginToGitHubOptions).click(function() {
         loginToGitHubOptions.hide();
+        dialogBg.hide();
     });
     $(".wizard-submit-button", loginToGitHubOptions).click(function() {
         chrome.runtime.sendMessage({
@@ -175,34 +186,35 @@ function createButton() {
     $("body").append(loginToGitHubOptions);
 
     saveToGitHubOptions = $(
-        '<div class="goog-modalpopup modal-dialog wizard-dialog" ' +
+        '<div class="modal-dialog bigquery-dialog wizard-dialog" ' +
             'tabindex="0" style="width:670px; height: 260px; left: 50%; ' +
             'margin-left: -335px; display: none">' +
-          '<div class="modal-dialog-title">' + 
+          '<div class="modal-dialog-title">' +
             '<span id="wizard-title" class="modal-dialog-title-text">' +
-              'Save to GitHub</span>' + 
+              'Save to GitHub</span>' +
             '<span class="modal-dialog-title-close"></span>' +
           '</div>' +
           '<div style="position: absolute; right: 42px; left: 42px; ' +
               'height: 454px">' +
             '<article class="wizard-step">' +
               '<table><tbody>' +
-                '<tr><th>Repository</th><td><input id="github-repo" ' +
-                  'type="text" class="jfk-textinput"' +
+                '<tr><th style="text-align: left">Repository</th><td><input id="github-repo" ' +
+                  'type="text" class="jfk-textinput" ' +
+                  'style="width:250px;margin-right:10px" ' +
                   'placeholder="owner/repo">' +
                   '<div id="validator-indicator" class="validator-bubble validator-invalid" style="display:none"><div class="validator-symbol goog-inline-block">!</div></div>' +
                   '<div id="validator-indicator" class="validator-bubble validator-valid" style="display:none"><div class="validator-symbol goog-inline-block">&#x2713;</div></div>' +
                   '</td></tr>' +
-                '<tr><th>Path</th><td><input id="github-path" ' +
-                  'type="text" class="jfk-textinput"' +
+                '<tr><th style="text-align: left">Path</th><td><input id="github-path" ' +
+                  'type="text" class="jfk-textinput" style="width:250px" ' +
                   'placeholder="path/to/file"></td></tr>' +
-                '<tr><th>Filename</th><td><input id="github-name" ' +
-                  'type="text" class="jfk-textinput"' +
+                '<tr><th style="text-align: left">Filename</th><td><input id="github-name" ' +
+                  'type="text" class="jfk-textinput" style="width:250px" ' +
                   'placeholder="filename (w/o extension)"></td></tr>' +
-                '<tr><th>Title</th><td><input id="github-title" ' +
-                  'type="text" class="jfk-textinput"></td></tr>' +
-                '<tr><th>Description</th><td><input id="github-description" ' +
-                  'type="text" class="jfk-textinput"></td></tr>' +
+                '<tr><th style="text-align: left">Title</th><td><input id="github-title" ' +
+                  'type="text" class="jfk-textinput" style="width:250px" ></td></tr>' +
+                '<tr><th style="text-align: left">Description</th><td><input id="github-description" ' +
+                  'type="text" class="jfk-textinput" style="width:250px" ></td></tr>' +
               '</tbody></table>' +
             '</article>' +
           '</div>' +
@@ -220,9 +232,11 @@ function createButton() {
     });
     $(".modal-dialog-title-close", saveToGitHubOptions).click(function() {
         saveToGitHubOptions.hide();
+        dialogBg.hide();
     });
     $(".wizard-cancel-button", saveToGitHubOptions).click(function() {
         saveToGitHubOptions.hide();
+        dialogBg.hide();
     });
     $(".wizard-submit-button", saveToGitHubOptions).click(function() {
         var params = validate();
@@ -245,7 +259,7 @@ window.addEventListener('message', function(event) {
 
 function saveToGitHub(repo, path, name, title, description) {
     // TODO(tom): Linting of path & name
-    
+
     // Set a handler that the injected JS on the page will talk to via the
     // message handler above
     _scrapeResultsHandler = function(bqText, jsText) {
@@ -295,6 +309,7 @@ chrome.runtime.onMessage.addListener(
         if (request.type && request.type === "savedToGitHub") {
             saveToGitHubButton.removeClass("jfk-button-disabled");
             saveToGitHubOptions.hide();
+            dialogBg.hide();
             sendState = null;
         }
 
